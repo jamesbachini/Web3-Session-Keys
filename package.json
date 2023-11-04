@@ -1,0 +1,15 @@
+{
+  "name": "web3-session-keys",
+  "version": "1.0.0",
+  "description": "an exploration of how we can use digital wallets to authenticate in web3",
+  "main": "backend.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^6.8.1",
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web3 Session Key Demo</title>
+    <style>
+      html { background: url(https://cloudflare-ipfs.com/ipfs/bafybeiez3pxezg6nh42ktu5rwhi5hxzh4i4ajedabgk3od3hahw5fh5s7u) no-repeat center center fixed; -webkit-background-size: cover;-moz-background-size: cover;-o-background-size: cover;background-size: cover; }
+      body { font-family: sans-serif; color: #CCC; margin: 0px; text-align: center; }
+      button { width: 120px; height: 30px; border: none; border-radius: 5px; background: #000; background: -webkit-linear-gradient(#349bf5, #125748); color: #CCC; cursor: pointer; margin: 5px; }
+      input[type=text] { width: 180px; height: 24px; border-radius: 5px; text-align: center; }
+      .container { margin-top: 20%; font-size: 1.5em; }
+      a { color: #CCC; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Web3 Session Key Demo</h1>
+      <button id="btn-authenticate">Connect</button>
+      <br /><br />
+      <input type="text" id="input-name" placeholder="Enter your name" />
+      <br />
+      <button id="btn-setname">Set Name</button>
+      <button id="btn-getname">Get Name</button>
+      <br /><br />
+      <button id="btn-logout">Log Out</button>
+      <br /><br />
+      <div id="status-message"></div>
+    </div>
+
+
+  <script type="module">
+    import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
+    
+    const setStatusMessage = (message) => {
+      document.getElementById('status-message').textContent = message;
+    };
+
+    const signOwnershipProof = async (provider) => {
+      try {
+        const signer = await provider.getSigner();
+        const fromAddress = await signer.getAddress();
+        console.log(fromAddress)
+        localStorage.fromAddress = fromAddress;
+        const nonce = Math.random().toString();
+        const siteID = 'Web3 Session Key Demo';
+        const signature = await signer.signMessage(`I am proving ownership of this address: ${nonce} ${siteID}`);
+        return {
+          fromAddress,
+          signature,
+          nonce
+        };
+      } catch (error) {
+        console.error('Error signing message', error);
+        setStatusMessage('Error signing message: ' + error.message);
+      }
+    };
+
+    const verifyWallet = async (fromAddress, signature, nonce) => {
+      const apiEndpoint = 'http://localhost:3000/verifyWallet';
+      try {
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fromAddress, signature, nonce }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API responded with status code: ${response.status}`);
+        }
+
+        const { isValid, sessionKey } = await response.json();
+
+        if (isValid) {
+          localStorage.sessionKey = sessionKey;
+          setStatusMessage('Wallet verified successfully. Session key stored.');
+        } else {
+          setStatusMessage('Invalid signature or nonce');
+        }
+      } catch (error) {
+        setStatusMessage('Error verifying wallet: ' + error.message);
+      }
+    };
+
+    const authenticateAndSetSession = async () => {
+      if (!window.ethereum) {
+          setStatusMessage('MetaMask is not installed. Please install it to use this feature.');
+          return;
+      }
+
+      try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const provider = new ethers.BrowserProvider(window.ethereum)
+        setStatusMessage('Signing message for authentication...');
+        const { fromAddress, signature, nonce } = await signOwnershipProof(provider);
+        setStatusMessage('Verifying signature with backend...');
+        await verifyWallet(fromAddress, signature, nonce);
+      } catch (error) {
+        setStatusMessage('An error occurred: ' + error.message);
+      }
+    };
+    document.getElementById('btn-authenticate').addEventListener('click', authenticateAndSetSession);
+
+    const setName = async () => {
+      if (localStorage.sessionKey) {
+        const apiEndpoint = 'http://localhost:3000/setName';
+        try {
+          const newName = document.getElementById('input-name').value;
+          const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ fromAddress: localStorage.fromAddress, sessionKey: localStorage.sessionKey, newName }),
+          });
+          if (response.ok) setStatusMessage('Name updated.');
+        } catch (error) {
+          setStatusMessage('Error setting name: ' + error.message);
+        }
+      } else {
+        authenticateAndSetSession();
+      }
+    };
+    document.getElementById('btn-setname').addEventListener('click', setName);
+
+    const getName = async () => {
+      if (localStorage.sessionKey) {
+        const apiEndpoint = 'http://localhost:3000/getName';
+        try {  
+          const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ fromAddress: localStorage.fromAddress, sessionKey: localStorage.sessionKey }),
+          });
+          if (response.ok) {
+            const { name } = await response.json();
+            setStatusMessage(`Your name is: ${name}, Web3 sessions work!`);
+          }
+        } catch (error) {
+          setStatusMessage('Error setting name: ' + error.message);
+        }
+      } else {
+        setStatusMessage('Connect wallet and create a session key first');
+      }
+    };
+    document.getElementById('btn-getname').addEventListener('click', getName);
+
+    const logout = () => {
+      localStorage.clear();
+      window.location.reload();
+    }
+    document.getElementById('btn-logout').addEventListener('click', logout);
+
+  </script>
+</body>
+</html>
